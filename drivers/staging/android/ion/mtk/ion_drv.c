@@ -991,6 +991,15 @@ static struct ion_platform_heap ion_drv_platform_heaps[] = {
 	 .priv = NULL,
 	 },
 	{
+	 .type = (unsigned int)ION_HEAP_TYPE_DMA,
+	 .id = ION_HEAP_TYPE_DMA,
+	 .name = "ion_cma_heap",
+	 .base = 0,
+	 .size = 0,
+	 .align = 0,
+	 .priv = NULL,
+	 },
+	{
 	 .type = (unsigned int)ION_HEAP_TYPE_MULTIMEDIA,
 	 .id = ION_HEAP_TYPE_MULTIMEDIA,
 	 .name = "ion_mm_heap",
