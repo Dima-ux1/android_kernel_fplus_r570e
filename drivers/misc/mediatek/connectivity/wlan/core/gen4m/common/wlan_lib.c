@@ -7065,12 +7065,15 @@ uint32_t wlanCfgGet(IN struct ADAPTER *prAdapter,
 
 	if (prWlanCfgEntry) {
 		kalStrnCpy(pucValue, prWlanCfgEntry->aucValue,
-			   WLAN_CFG_VALUE_LEN_MAX - 1);
+			   (WLAN_CFG_VALUE_LEN_MAX - 1 < 31) ? (WLAN_CFG_VALUE_LEN_MAX - 1) : 31);
+		pucValue[31] = '\0';
 		return WLAN_STATUS_SUCCESS;
 	}
-	if (pucValueDef)
+	if (pucValueDef) {
 		kalStrnCpy(pucValue, pucValueDef,
-			   WLAN_CFG_VALUE_LEN_MAX - 1);
+			   (WLAN_CFG_VALUE_LEN_MAX - 1 < 31) ? (WLAN_CFG_VALUE_LEN_MAX - 1) : 31);
+		pucValue[31] = '\0';
+	}
 	return WLAN_STATUS_FAILURE;
 
 
@@ -10195,7 +10198,7 @@ uint32_t wlanCfgSetGetFw(IN struct ADAPTER *prAdapter, const char *fwBuffer,
 uint32_t wlanFwCfgParse(IN struct ADAPTER *prAdapter, uint8_t *pucConfigBuf)
 {
 	/* here return a list should be better */
-	char *saveptr1, *saveptr2;
+	char *saveptr1 = NULL, *saveptr2 = NULL;
 	char *cfgItems = pucConfigBuf;
 	uint8_t cmdNum = 0;
 
