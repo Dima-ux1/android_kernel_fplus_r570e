@@ -66,13 +66,26 @@ jobs:
           echo "✓ Fixed fm_link.c"
         fi
         
-        # Fix wlan_lib.c uninitialized variable
+        # Fix wlan_lib.c uninitialized variable and memset errors
         FILE="drivers/misc/mediatek/connectivity/wlan/core/gen4m/common/wlan_lib.c"
         if [ -f "$FILE" ]; then
           # Initialize saveptr1
           sed -i 's/char \*saveptr1, \*saveptr2;/char *saveptr1 = NULL, *saveptr2 = NULL;/g' "$FILE" || true
-          echo "✓ Fixed wlan_lib.c (initialized saveptr1)"
-          # Note: strncpy fixes are applied directly in the file
+          # Fix kalMemSet for apcArgv (array of pointers)
+          sed -i 's/kalMemSet(apcArgv, 0, WLAN_CFG_ARGV_MAX);/kalMemSet(apcArgv, 0, WLAN_CFG_ARGV_MAX * sizeof(int8_t *));/g' "$FILE" || true
+          # Fix kalMemSet for arcArgv_size (array of int8_t)
+          sed -i 's/kalMemSet(arcArgv_size, 0, WLAN_CFG_ARGV_MAX);/kalMemSet(arcArgv_size, 0, WLAN_CFG_ARGV_MAX * sizeof(int8_t));/g' "$FILE" || true
+          echo "✓ Fixed wlan_lib.c"
+        fi
+        
+        # Fix wmt_plat_alps.c enum/integer mismatch
+        FILE="drivers/misc/mediatek/connectivity/common/common_main/platform/wmt_plat_alps.c"
+        if [ -f "$FILE" ]; then
+          # Change parameter type from WMT_SDIO_SLOT_NUM to UINT32
+          sed -i 's/INT32 wmt_plat_sdio_ctrl(WMT_SDIO_SLOT_NUM sdioPortType, ENUM_FUNC_STATE on)/INT32 wmt_plat_sdio_ctrl(UINT32 sdioPortNum, ENUM_FUNC_STATE on)/g' "$FILE" || true
+          # Fix variable name in function body
+          sed -i 's/board_sdio_ctrl(sdioPortType,/board_sdio_ctrl(sdioPortNum,/g' "$FILE" || true
+          echo "✓ Fixed wmt_plat_alps.c"
         fi
     
     - name: Configure kernel
