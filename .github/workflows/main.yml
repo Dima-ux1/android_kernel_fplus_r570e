@@ -110,9 +110,29 @@ jobs:
         # Fix gl_qa_agent.c memcpy bounds error
         FILE="drivers/misc/mediatek/connectivity/wlan/core/gen4m/os/linux/gl_qa_agent.c"
         if [ -f "$FILE" ]; then
-          # Note: File should be fixed directly (move u2Len calculation before kmalloc_array)
-          # Complex sed replacement skipped - file should be fixed in repository
-          echo "⚠ gl_qa_agent.c - check if fixed in repository"
+          # Ensure u2Len is initialized
+          sed -i 's/uint16_t u2Len;$/uint16_t u2Len = 0;/g' "$FILE" || true
+          # Add u2Len calculation before kmalloc_array if it doesn't exist
+          if ! grep -q "u2Len = ntohl(HqaCmdFrame->Length) - sizeof(u4SuMu);" "$FILE"; then
+            sed -i '/DBGLOG(RFTEST, INFO, "QA_AGENT HQA_MUSetMUTable\\n");/a\
+\
+	u2Len = ntohl(HqaCmdFrame->Length) - sizeof(u4SuMu);' "$FILE" || true
+          fi
+          # Add check for u2Len == 0 before kmalloc_array if it doesn't exist
+          if ! grep -B5 "kmalloc_array(u2Len" "$FILE" | grep -q "if (u2Len == 0)"; then
+            sed -i '/u2Len = ntohl(HqaCmdFrame->Length) - sizeof(u4SuMu);/a\
+	if (u2Len == 0) {\
+		return -EINVAL;\
+	}' "$FILE" || true
+          fi
+          # Add check for prTable == NULL after kmalloc_array if it doesn't exist
+          if ! grep -A3 "kmalloc_array(u2Len, sizeof(uint8_t), GFP_KERNEL);" "$FILE" | grep -q "if (!prTable)"; then
+            sed -i '/prTable = kmalloc_array(u2Len, sizeof(uint8_t), GFP_KERNEL);/a\
+	if (!prTable) {\
+		return -ENOMEM;\
+	}' "$FILE" || true
+          fi
+          echo "✓ Fixed gl_qa_agent.c"
         fi
     
     - name: Configure kernel
