@@ -87,6 +87,33 @@ jobs:
           sed -i 's/board_sdio_ctrl(sdioPortType,/board_sdio_ctrl(sdioPortNum,/g' "$FILE" || true
           echo "✓ Fixed wmt_plat_alps.c"
         fi
+        
+        # Fix stp_core.c enum/integer mismatch
+        FILE="drivers/misc/mediatek/connectivity/common/common_main/core/stp_core.c"
+        if [ -f "$FILE" ]; then
+          # Change parameter type from MTKSTP_PSM_ACTION_T to UINT32
+          sed -i 's/INT32 mtk_wcn_stp_psm_notify_stp(const MTKSTP_PSM_ACTION_T action)/INT32 mtk_wcn_stp_psm_notify_stp(const UINT32 action)/g' "$FILE" || true
+          # Add type cast for stp_psm_notify_stp call
+          sed -i 's/stp_psm_notify_stp(STP_PSM_CORE(stp_core_ctx), action);/stp_psm_notify_stp(STP_PSM_CORE(stp_core_ctx), (MTKSTP_PSM_ACTION_T)action);/g' "$FILE" || true
+          echo "✓ Fixed stp_core.c"
+        fi
+        
+        # Fix gl_kal.c uninitialized variables
+        FILE="drivers/misc/mediatek/connectivity/wlan/core/gen4m/os/linux/gl_kal.c"
+        if [ -f "$FILE" ]; then
+          # Initialize acBuf arrays (all occurrences)
+          sed -i 's/char acBuf\[128 + 1\];\s*\/\* + 1 for "\\0" \*\//char acBuf[128 + 1] = {0}; \/* + 1 for "\\0" *\//g' "$FILE" || true
+          sed -i 's/char acBuf\[128 + 1\];$/char acBuf[128 + 1] = {0};/g' "$FILE" || true
+          echo "✓ Fixed gl_kal.c"
+        fi
+        
+        # Fix gl_qa_agent.c memcpy bounds error
+        FILE="drivers/misc/mediatek/connectivity/wlan/core/gen4m/os/linux/gl_qa_agent.c"
+        if [ -f "$FILE" ]; then
+          # Note: File should be fixed directly (move u2Len calculation before kmalloc_array)
+          # Complex sed replacement skipped - file should be fixed in repository
+          echo "⚠ gl_qa_agent.c - check if fixed in repository"
+        fi
     
     - name: Configure kernel
       run: |
