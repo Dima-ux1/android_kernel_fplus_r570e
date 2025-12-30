@@ -20,7 +20,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     
     steps:
     - name: Checkout repository
@@ -31,16 +31,14 @@ jobs:
     - name: Set up build environment
       run: |
         sudo apt-get update
-        # Try to install older GCC versions first
-        sudo apt-get install -y software-properties-common || true
-        sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test || true
-        sudo apt-get update || true
+        # Install GCC 7 cross-compilation toolchain (compatible with kernel 4.9)
         sudo apt-get install -y \
           build-essential \
           gcc-7-aarch64-linux-gnu \
-          gcc-8-aarch64-linux-gnu \
+          g++-7-aarch64-linux-gnu \
           gcc-aarch64-linux-gnu \
-          gcc-arm-linux-gnueabihf \
+          g++-aarch64-linux-gnu \
+          binutils-aarch64-linux-gnu \
           libncurses5-dev \
           libssl-dev \
           bc \
@@ -49,19 +47,15 @@ jobs:
           libelf-dev \
           libdw-dev \
           python3 \
-          git || true
-        # Try to use GCC 7 or 8 which is more compatible with kernel 4.9
+          git
+        # Use GCC 7 if available, otherwise use default
         if command -v aarch64-linux-gnu-gcc-7 &> /dev/null; then
-          echo "Using GCC 7"
-          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-7 10 || true
-        elif command -v aarch64-linux-gnu-gcc-8 &> /dev/null; then
-          echo "Using GCC 8"
-          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-8 10 || true
-        else
-          echo "Using default GCC version"
+          echo "Using GCC 7 for kernel 4.9 compatibility"
+          sudo update-alternatives --install /usr/bin/aarch64-linux-gnu-gcc aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-7 100 || true
+          sudo update-alternatives --set aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-gnu-gcc-7 || true
         fi
-        # Show GCC version
-        aarch64-linux-gnu-gcc --version || true
+        # Verify GCC installation
+        aarch64-linux-gnu-gcc --version
     
     - name: Clean kernel tree
       run: |
@@ -74,23 +68,25 @@ jobs:
         export CROSS_COMPILE=aarch64-linux-gnu-
         make ${{ github.event.inputs.config || 'r570e_defconfig' }}
     
-    - name: Add compiler flags globally via Kbuild
+    - name: Disable strict warnings for problematic modules
       run: |
-        # Disable -Werror for problematic modules (most aggressive approach)
+        # Modify scripts/Makefile.build to replace -Werror with -Wno-error for specific warnings
+        if [ -f "scripts/Makefile.build" ]; then
+          # Replace -Werror=memset-elt-size with -Wno-error=memset-elt-size
+          sed -i 's/-Werror=memset-elt-size/-Wno-error=memset-elt-size/g' scripts/Makefile.build || true
+          sed -i 's/-Werror=array-bounds/-Wno-error=array-bounds/g' scripts/Makefile.build || true
+          sed -i 's/-Werror=maybe-uninitialized/-Wno-error=maybe-uninitialized/g' scripts/Makefile.build || true
+          sed -i 's/-Werror=enum-int-mismatch/-Wno-error=enum-int-mismatch/g' scripts/Makefile.build || true
+          sed -i 's/-Werror=stringop-overflow/-Wno-error=stringop-overflow/g' scripts/Makefile.build || true
+        fi
+        # Add flags to problematic module Makefiles using ccflags-y
         if [ -f "drivers/misc/mediatek/connectivity/wlan/core/gen4m/common/Makefile" ]; then
-          # Remove -Werror and add specific no-error flags
-          sed -i 's/-Werror[^ ]*//g' drivers/misc/mediatek/connectivity/wlan/core/gen4m/common/Makefile || true
           echo 'ccflags-y += -Wno-error=memset-elt-size -Wno-error=array-bounds -Wno-error=maybe-uninitialized -Wno-error=enum-int-mismatch' >> drivers/misc/mediatek/connectivity/wlan/core/gen4m/common/Makefile || true
         fi
         if [ -f "drivers/misc/mediatek/connectivity/common/common_main/platform/Makefile" ]; then
-          sed -i 's/-Werror[^ ]*//g' drivers/misc/mediatek/connectivity/common/common_main/platform/Makefile || true
           echo 'ccflags-y += -Wno-error=enum-int-mismatch -Wno-error=array-bounds -Wno-error=maybe-uninitialized' >> drivers/misc/mediatek/connectivity/common/common_main/platform/Makefile || true
         fi
-        # Also try to disable -Werror globally for modules
-        if [ -f "scripts/Makefile.build" ]; then
-          sed -i 's/-Werror=\(memset-elt-size\|array-bounds\|maybe-uninitialized\|enum-int-mismatch\)/-Wno-error=\1/g' scripts/Makefile.build || true
-        fi
-        echo "✓ Disabled -Werror for problematic modules"
+        echo "✓ Disabled strict warnings for problematic modules"
     
     - name: Build kernel image only
       continue-on-error: true
