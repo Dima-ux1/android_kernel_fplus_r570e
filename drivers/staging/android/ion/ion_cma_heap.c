@@ -49,6 +49,12 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	struct device *dev = cma_heap->dev;
 	struct ion_cma_buffer_info *info;
 
+	/* Check if device is valid */
+	if (!dev) {
+		pr_err("ion_cma_heap: device is NULL, cannot allocate\n");
+		return ION_CMA_ALLOCATE_FAILED;
+	}
+
 	if (buffer->flags & ION_FLAG_CACHED)
 		return -EINVAL;
 
@@ -94,11 +100,17 @@ static void ion_cma_free(struct ion_buffer *buffer)
 	struct device *dev = cma_heap->dev;
 	struct ion_cma_buffer_info *info = buffer->priv_virt;
 
+	/* Check if device and info are valid */
+	if (!dev || !info)
+		return;
+
 	/* release memory */
 	dma_free_coherent(dev, buffer->size, info->cpu_addr, info->handle);
 	/* release sg table */
-	sg_free_table(info->table);
-	kfree(info->table);
+	if (info->table) {
+		sg_free_table(info->table);
+		kfree(info->table);
+	}
 	kfree(info);
 }
 
@@ -109,6 +121,10 @@ static int ion_cma_mmap(struct ion_heap *mapper, struct ion_buffer *buffer,
 	struct device *dev = cma_heap->dev;
 	struct ion_cma_buffer_info *info = buffer->priv_virt;
 
+	/* Check if device and info are valid */
+	if (!dev || !info)
+		return -EINVAL;
+
 	return dma_mmap_coherent(dev, vma, info->cpu_addr, info->handle,
 				 buffer->size);
 }
@@ -118,7 +134,7 @@ static void *ion_cma_map_kernel(struct ion_heap *heap,
 {
 	struct ion_cma_buffer_info *info = buffer->priv_virt;
 	/* kernel memory mapping has been done at allocation time */
-	return info->cpu_addr;
+	return info ? info->cpu_addr : NULL;
 }
 
 static void ion_cma_unmap_kernel(struct ion_heap *heap,
@@ -145,10 +161,19 @@ struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *data)
 
 	cma_heap->heap.ops = &ion_cma_ops;
 	/*
-	 * get device from private heaps data, later it will be
-	 * used to make the link with reserved CMA memory
+	 * get device from g_ion_device first (recommended for MediaTek),
+	 * then fall back to data->priv if available, otherwise fail
 	 */
-	cma_heap->dev = data->priv;
+	if (g_ion_device && g_ion_device->dev.this_device)
+		cma_heap->dev = g_ion_device->dev.this_device;
+	else if (data->priv)
+		cma_heap->dev = data->priv;
+	else {
+		pr_err("ion_cma_heap: device is NULL, cannot create CMA heap\n");
+		kfree(cma_heap);
+		return ERR_PTR(-EINVAL);
+	}
+
 	cma_heap->heap.type = ION_HEAP_TYPE_DMA;
 	return &cma_heap->heap;
 }
@@ -159,3 +184,4 @@ void ion_cma_heap_destroy(struct ion_heap *heap)
 
 	kfree(cma_heap);
 }
+
