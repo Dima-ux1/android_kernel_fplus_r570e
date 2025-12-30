@@ -104,7 +104,7 @@ static void gpu_GPULoading(struct work_struct *work)
 	unsigned int	loading = 0;
 	int		count = 0;
 
-	memset(pu4Value, 0x00, eMET_GPU_PROFILE_CNT);
+	memset(pu4Value, 0x00, eMET_GPU_PROFILE_CNT * sizeof(unsigned int));
 	if ((1 << eMET_GPU_LOADING) & g_u4AvailableInfo) {
 		if (mtk_get_gpu_loading_symbol && mtk_get_gpu_loading_symbol(&pu4Value[u4Index]))
 			u4Index += 1;
@@ -137,7 +137,7 @@ static void gpu_GPULoading(unsigned long long stamp, int cpu)
 	unsigned int	loading = 0;
 	int		count = 0;
 
-	memset(pu4Value, 0x00, eMET_GPU_PROFILE_CNT);
+	memset(pu4Value, 0x00, eMET_GPU_PROFILE_CNT * sizeof(unsigned int));
 	if ((1 << eMET_GPU_LOADING) & g_u4AvailableInfo) {
 		if (mtk_get_gpu_loading_symbol) {
 			mtk_get_gpu_loading_symbol(&pu4Value[u4Index]);
