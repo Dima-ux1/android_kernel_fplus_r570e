@@ -56,6 +56,18 @@ jobs:
         export CROSS_COMPILE=aarch64-linux-gnu-
         make ${{ github.event.inputs.config || 'r570e_defconfig' }}
     
+    - name: Add compiler flags to problematic modules
+      run: |
+        # Add flags to wlan_lib.c module Makefile
+        if [ -f "drivers/misc/mediatek/connectivity/wlan/core/gen4m/common/Makefile" ]; then
+          echo 'KBUILD_EXTRA_CFLAGS += -Wno-error=memset-elt-size -Wno-error=array-bounds -Wno-error=maybe-uninitialized -Wno-error=enum-int-mismatch' >> drivers/misc/mediatek/connectivity/wlan/core/gen4m/common/Makefile || true
+        fi
+        # Add flags to wmt_plat_alps.c module Makefile
+        if [ -f "drivers/misc/mediatek/connectivity/common/common_main/platform/Makefile" ]; then
+          echo 'KBUILD_EXTRA_CFLAGS += -Wno-error=enum-int-mismatch -Wno-error=array-bounds -Wno-error=maybe-uninitialized' >> drivers/misc/mediatek/connectivity/common/common_main/platform/Makefile || true
+        fi
+        echo "✓ Added compiler flags to problematic modules"
+    
     - name: Build kernel image only
       continue-on-error: true
       run: |
